@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/part_data.gd" id="1_part"]
+
+[resource]
+script = ExtResource("1_part")
+part_type = 4
+part_name = "重型火炮"
+price = 70
+cannon_damage = 28.0
+cannon_range = 32.0
+cannon_cooldown = 2.0
+cannon_projectile_speed = 24.0
+cannon_gravity = 9.8

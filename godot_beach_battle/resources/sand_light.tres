@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/part_data.gd" id="1_part"]
+
+[resource]
+script = ExtResource("1_part")
+part_type = 3
+part_name = "轻沙袋"
+price = 10
+sand_ram_damage = 8.0
+sand_speed_penalty = 0.08

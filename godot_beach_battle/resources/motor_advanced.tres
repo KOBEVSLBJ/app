@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/part_data.gd" id="1_part"]
+
+[resource]
+script = ExtResource("1_part")
+part_type = 1
+part_name = "强力马达"
+price = 55
+motor_speed = 14.0
+motor_accel = 18.0
