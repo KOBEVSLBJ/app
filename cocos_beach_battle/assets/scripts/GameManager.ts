@@ -102,6 +102,9 @@ export class GameManager extends Component {
         for (const b of this._boatsB) b.applySpriteFrame();
         if (this._buildUI) this._buildUI.refreshIcons();
         if (this._mapRenderer) this._mapRenderer.refreshTiles();
+        for (const m of this._mounds) m.refresh();
+        if (this._baseA) this._baseA.applySprites();
+        if (this._baseB) this._baseB.applySprites();
     }
 
     // ================= 地图 =================

@@ -150,9 +150,9 @@ export class Boat extends Damageable {
         }
     }
 
-    // 精灵朝向跟随 _angle (假设 Kenney 船图船头朝 -y/上, angle=0 不旋转)
-    // 若实际朝向偏移, 调整 SHIP_ANGLE_OFFSET 即可
-    private static readonly SHIP_ANGLE_OFFSET: number = 0;
+    // 精灵朝向偏移(度): Kenney pirate ship 俯视图船头默认朝上(-y), 与 angle=0 一致
+    // 若在编辑器实测发现船头方向不对, 改这个值即可(如 90=朝右, -90=朝左)
+    static SHIP_ANGLE_OFFSET: number = 0;
     private _updateSpriteRotation(): void {
         if (!this._sprite) return;
         const deg = math.radToDeg(this._angle) + Boat.SHIP_ANGLE_OFFSET;
