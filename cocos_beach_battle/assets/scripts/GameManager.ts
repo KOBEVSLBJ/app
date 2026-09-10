@@ -12,6 +12,7 @@ import { GameConfig, GameState, PlayerId, CollisionLayer } from './data/GameConf
 import { PartData, BoatConfig, getCatalog } from './data/PartData';
 import { Pseudo3D, WorldPos } from './core/Pseudo3D';
 import { MapRenderer } from './core/MapRenderer';
+import { AudioManager } from './core/AudioManager';
 import { ModelRenderer } from './core/ModelRenderer';
 import { Boat } from './entities/Boat';
 import { Turret } from './entities/Turret';
@@ -36,6 +37,7 @@ export class GameManager extends Component {
     // 地图
     private _mapRenderer!: MapRenderer;
     private _mounds: Mound[] = [];
+    private _audioManager!: AudioManager;
 
     // 单位
     private _boatsA: Boat[] = [];
@@ -86,6 +88,11 @@ export class GameManager extends Component {
         this._worldNode.addChild(this._projectileNode);
         this._uiNode = new Node('UI');
         this.node.addChild(this._uiNode);
+
+        // 音频管理器(持久节点, 预加载 .ogg)
+        const audioNode = new Node('AudioManager');
+        this.node.addChild(audioNode);
+        this._audioManager = audioNode.addComponent(AudioManager);
 
         this._setupMap();
         this._setupCamera();
@@ -399,6 +406,10 @@ export class GameManager extends Component {
             () => this._getAllTargets(boat.team)
         );
         if (AssetLoader.ready) proj.applySprite();
+        // 命中音效回调
+        proj.onHitCb = () => this._audioManager.playHit();
+        // 开火音效
+        this._audioManager.playCannonFire();
     }
 
     private _spawnTurretProjectile(pos: WorldPos, vel: WorldPos, dmg: number, team: number, range: number): void {
@@ -522,11 +533,13 @@ export class GameManager extends Component {
     }
 
     private _onBaseDestroyed(team: number): void {
+        this._audioManager.playExplosion();
         this._enterResult(1 - team);
     }
 
     private _onBoatDestroyed(boat: Boat): void {
         // 船在filter中自动清理
+        this._audioManager.playBoatDestroyed();
     }
 
     private _onTurretDestroyed(turret: Turret): void {

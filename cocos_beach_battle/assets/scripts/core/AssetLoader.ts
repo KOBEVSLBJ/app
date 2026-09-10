@@ -46,9 +46,11 @@ export const KenneyAssets = {
     FLAG_2: 'kenney/parts/flag_2/spriteFrame',
     NEST: 'kenney/parts/nest/spriteFrame',
 
-    // 地形 tile(MapRenderer 可选)
-    TILE_WATER: 'kenney/tiles/tile_01/spriteFrame',
-    TILE_SAND: 'kenney/tiles/tile_06/spriteFrame',
+    // 地形 tile(优先 custom 自制, 失败回退 Kenney)
+    TILE_WATER: 'custom/tile_water/spriteFrame',
+    TILE_SAND: 'custom/tile_sand/spriteFrame',
+    TILE_WATER_FALLBACK: 'kenney/tiles/tile_01/spriteFrame',
+    TILE_SAND_FALLBACK: 'kenney/tiles/tile_06/spriteFrame',
     TILE_GRASS: 'kenney/tiles/tile_03/spriteFrame',
 };
 
@@ -75,7 +77,8 @@ export const PRELOAD_PATHS: string[] = [
     KenneyAssets.SAIL_LARGE_1, KenneyAssets.POLE, KenneyAssets.FLAG_1, KenneyAssets.FLAG_2,
     KenneyAssets.NEST,
     KenneyAssets.BASE, KenneyAssets.MOUND, KenneyAssets.MOUND_FALLBACK,
-    KenneyAssets.TILE_WATER, KenneyAssets.TILE_SAND,
+    KenneyAssets.TILE_WATER, KenneyAssets.TILE_WATER_FALLBACK,
+    KenneyAssets.TILE_SAND, KenneyAssets.TILE_SAND_FALLBACK,
 ];
 
 export class AssetLoader {

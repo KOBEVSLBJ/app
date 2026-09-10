@@ -31,6 +31,7 @@ export class Projectile extends Component {
     private _sprite: Sprite | null = null;
     private _useSprite: boolean = false;
     private _getTargets!: () => DamageableLike[];
+    onHitCb: (() => void) | null = null;
 
     setup(dmg: number, vel: WorldPos, g: number, team: number, range: number, getTargets: () => DamageableLike[]): void {
         this.damage = dmg;
@@ -117,6 +118,7 @@ export class Projectile extends Component {
             const dist = Pseudo3D.distanceXZ(this._pos, tp);
             if (dist < 25) {
                 t.takeDamage(this.damage, "cannon");
+                if (this.onHitCb) this.onHitCb();
                 this._destroy();
                 return;
             }

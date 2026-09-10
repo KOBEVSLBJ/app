@@ -9,10 +9,10 @@ declare module 'cc' {
   export class Component {
     node: Node;
     isValid: boolean;
-    protected onLoad(): void {}
-    protected start(): void {}
-    protected update(dt: number): void {}
-    protected onDestroy(): void {}
+    onLoad(): void {}
+    start(): void {}
+    update(dt: number): void {}
+    onDestroy(): void {}
     schedule(callback: Function, interval?: number, repeat?: number, delay?: number): void;
     unschedule(callback: Function): void;
   }
@@ -118,6 +118,23 @@ declare module 'cc' {
 
   export class SpriteFrame extends Asset {
   }
+
+  // 音频(沙灘航模大战用)
+  export class AudioClip extends Asset {
+    duration: number;
+  }
+  export class AudioSource extends Component {
+    clip: AudioClip | null;
+    volume: number;
+    loop: boolean;
+    play(): void;
+    playOneShot(clip: AudioClip, volumeScale?: number): void;
+    stop(): void;
+    pause(): void;
+  }
+
+  // 资源加载器
+  export function resources_load(path: string, type: any, callback: (err: Error | null, asset: Asset) => void): void;
 
   export class Graphics extends Component {
     lineWidth: number;
