@@ -34,25 +34,44 @@ export class BuildUI extends Component {
         const w = 1280;
         const h = 720;
 
-        // 背景面板
+        // 背景面板(深蓝渐变 + 圆角边框 + 标题栏)
         const bgNode = new Node('BG');
         this.node.addChild(bgNode);
         const bg = bgNode.addComponent(Graphics);
-        bg.fillColor = new Color(20, 30, 50, 220);
-        bg.rect(-w / 2, -h / 2, w, h);
+        // 渐变背景(从上到下: 深蓝→更深蓝, 用多条 rect 模拟)
+        for (let i = 0; i < 12; i++) {
+            const t = i / 11;
+            const r = Math.round(25 + t * 10);
+            const g = Math.round(35 + t * 15);
+            const b = Math.round(55 + t * 20);
+            bg.fillColor = new Color(r, g, b, 240);
+            bg.roundRect(-w / 2 + 8, h / 2 - 8 - (i + 1) * (h / 12), w - 16, h / 12 + 1, 0);
+            bg.fill();
+        }
+        // 外圆角边框(亮蓝)
+        bg.strokeColor = new Color(80, 130, 200, 255);
+        bg.lineWidth = 3;
+        bg.roundRect(-w / 2 + 8, -h / 2 + 8, w - 16, h - 16, 12);
+        bg.stroke();
+        // 标题栏(顶部亮色条)
+        bg.fillColor = new Color(50, 80, 140, 255);
+        bg.roundRect(-w / 2 + 8, h / 2 - 72, w - 16, 64, 12);
         bg.fill();
-        bg.fillColor = new Color(40, 50, 70, 255);
-        bg.rect(-w / 2, h / 2 - 80, w, 80);
-        bg.fill();
+        // 标题栏底部高光线
+        bg.strokeColor = new Color(120, 170, 230, 200);
+        bg.lineWidth = 2;
+        bg.moveTo(-w / 2 + 12, h / 2 - 72);
+        bg.lineTo(w / 2 - 12, h / 2 - 72);
+        bg.stroke();
 
-        // 标题
+        // 标题(标题栏内, 阵营色)
         const titleNode = new Node('Title');
         this.node.addChild(titleNode);
         const title = titleNode.addComponent(Label);
-        title.text = `拼装阶段 - 玩家 ${this._player === 0 ? 'A' : 'B'}`;
+        title.text = `⚓ 拼装阶段 - 玩家 ${this._player === 0 ? 'A' : 'B'}`;
         title.fontSize = 36;
-        title.color = Color.WHITE;
-        titleNode.setPosition(0, h / 2 - 50, 0);
+        title.color = this._player === 0 ? new Color(255, 220, 150, 255) : new Color(150, 220, 255, 255);
+        titleNode.setPosition(0, h / 2 - 40, 0);
         const tt = titleNode.addComponent(UITransform);
         tt.setContentSize(600, 50);
         tt.setAnchorPoint(0.5, 0.5);
@@ -172,6 +191,18 @@ export class BuildUI extends Component {
             const itemNode = new Node(`item_${i}`);
             col.addChild(itemNode);
             itemNode.setPosition(0, 50 - i * 30, 0);
+            // 选中项加高亮背景条
+            const isSelected = (this as any)[prop] === e.index;
+            if (isSelected) {
+                const hlGfx = itemNode.addComponent(Graphics);
+                hlGfx.fillColor = new Color(80, 120, 180, 180);
+                hlGfx.roundRect(-95, -12, 190, 24, 4);
+                hlGfx.fill();
+                hlGfx.strokeColor = new Color(140, 180, 230, 200);
+                hlGfx.lineWidth = 1;
+                hlGfx.roundRect(-95, -12, 190, 24, 4);
+                hlGfx.stroke();
+            }
             const itemLabel = itemNode.addComponent(Label);
             if (e.index === -1) {
                 itemLabel.text = '无';
@@ -179,16 +210,12 @@ export class BuildUI extends Component {
                 itemLabel.text = `${e.part.name} $${e.part.price}`;
             }
             itemLabel.fontSize = 14;
-            itemLabel.color = Color.WHITE;
+            itemLabel.color = isSelected ? new Color(255, 230, 120, 255) : Color.WHITE;
             // 点击切换
             itemNode.on('touch-end', () => {
                 (this as any)[prop] = e.index;
                 this._refresh();
             });
-            // 选中高亮
-            if ((this as any)[prop] === e.index) {
-                itemLabel.color = Color.YELLOW;
-            }
         }
         return col;
     }
@@ -198,9 +225,19 @@ export class BuildUI extends Component {
         this.node.addChild(btnNode);
         btnNode.setPosition(x, y, 0);
         const g = btnNode.addComponent(Graphics);
-        g.fillColor = new Color(60, 80, 120, 255);
-        g.roundRect(-90, -20, 180, 40, 5);
+        // 按钮主体(圆角蓝)
+        g.fillColor = new Color(60, 90, 150, 255);
+        g.roundRect(-90, -20, 180, 40, 8);
         g.fill();
+        // 顶部高光(亮色半条)
+        g.fillColor = new Color(100, 140, 200, 180);
+        g.roundRect(-88, -2, 176, 20, 6);
+        g.fill();
+        // 亮色边框
+        g.strokeColor = new Color(140, 180, 230, 255);
+        g.lineWidth = 2;
+        g.roundRect(-90, -20, 180, 40, 8);
+        g.stroke();
         const lbl = btnNode.addComponent(Label);
         lbl.text = text;
         lbl.fontSize = 18;
