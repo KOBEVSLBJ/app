@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>沙滩航模大战 - 伪3D预览</title>
+<style>
+  body { margin:0; background:#222; display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif; }
+  canvas { border:2px solid #555; }
+  #info { position:fixed; top:10px; left:10px; color:#fff; font-size:14px; z-index:10; }
+</style>
+</head>
+<body>
+<div id="info">沙滩航模大战 伪3D预览 | WASD移动 空格开火 | 点击开始</div>
+<canvas id="game" width="1280" height="720"></canvas>
+<script>
+// === 伪3D预览版 - 用Canvas2D验证渲染效果 ===
+const cv = document.getElementById('game');
+const ctx = cv.getContext('2d');
+const PERSPECTIVE_Y = 0.45;
+const WATER_RX = 380, WATER_RZ = 220;
+
+// 世界坐标→屏幕坐标
+function w2s(wx, wy, wz=0) {
+  return { x: 640 + wx, y: 360 + wy * PERSPECTIVE_Y - wz };
+}
+
+// 游戏状态
+let state = 'title'; // title, deploy, battle
+let boats = [];
+let mounds = [];
+let bases = [];
+let turrets = [];
+let projectiles = [];
+let selIdx = 0;
+let deployIdx = 0;
+
+// 零件目录
+const PARTS = {
+  hull: [
+    {name:'泡沫板',price:30,hp:60,def:0,color:'#e8c896'},
+    {name:'木板',price:60,hp:120,def:0.15,color:'#c8a878'},
+    {name:'铁皮',price:100,hp:200,def:0.35,color:'#a0a0a0'},
+  ],
+  motor: [
+    {name:'基础',price:25,speed:80},
+    {name:'强力',price:55,speed:140},
+  ],
+  cannon: [
+    {name:'轻型',price:35,dmg:12,range:220,cd:1.2,pspeed:180},
+    {name:'重型',price:70,dmg:28,range:320,cd:2.0,pspeed:240},
+  ],
+};
+
+class Boat {
+  constructor(team, x, y) {
+    this.team = team;
+    this.x = x; this.y = y; this.z = 0;
+    this.angle = team === 0 ? 0 : Math.PI;
+    this.speed = 0; this.hp = 120; this.maxHp = 120;
+    this.moveSpeed = 80; this.turnRate = 2.2;
+    this.ramDmg = 8; this.cannonDmg = 12; this.cannonRange = 220;
+    this.cannonCD = 1.2; this.cdLeft = 0; this.cannonPSpeed = 180;
+    this.color = team === 0 ? '#e8c896' : '#96c8e8';
+    this.dead = false;
+    this.input = {throttle:0, turn:0, fire:false};
+  }
+  update(dt) {
+    if (this.dead) return;
+    this.cdLeft -= dt;
+    this.angle += this.input.turn * this.turnRate * dt;
+    const target = this.input.throttle * this.moveSpeed;
+    const accel = 120;
+    if (Math.abs(target - this.speed) < accel*dt) this.speed = target;
+    else this.speed += Math.sign(target - this.speed) * accel * dt;
+    this.x += Math.sin(this.angle) * this.speed * dt;
+    this.y -= Math.cos(this.angle) * this.speed * dt;
+    // 边界
+    const val = this.x*this.x/(WATER_RX*WATER_RX) + this.y*this.y/(WATER_RZ*WATER_RZ);
+    if (val > 1.0) {
+      const a = Math.atan2(this.y, this.x);
+      this.x = Math.cos(a)*WATER_RX; this.y = Math.sin(a)*WATER_RZ;
+    }
+    if (this.input.fire) { this.input.fire = false; this.fire(); }
+  }
+  fire() {
+    if (this.cdLeft > 0) return;
+    this.cdLeft = this.cannonCD;
+    const la = Math.PI/4;
+    const hs = this.cannonPSpeed * Math.cos(la);
+    const vs = this.cannonPSpeed * Math.sin(la);
+    projectiles.push({
+      x: this.x + Math.sin(this.angle)*15,
+      y: this.y - Math.cos(this.angle)*15,
+      z: 10,
+      vx: Math.sin(this.angle)*hs,
+      vy: -Math.cos(this.angle)*hs,
+      vz: vs,
+      dmg: this.cannonDmg, team: this.team,
+      range: this.cannonRange, traveled: 0,
+      sx: this.x, sy: this.y,
+      alive: true,
+    });
+  }
+  draw() {
+    const s = w2s(this.x, this.y);
+    // 阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y, 24, 10, 0, 0, Math.PI*2);
+    ctx.fill();
+    // 船体(菱形)
+    const h = 20;
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y - 14);
+    ctx.lineTo(s.x + 18, s.y);
+    ctx.lineTo(s.x, s.y + 14);
+    ctx.lineTo(s.x - 18, s.y);
+    ctx.closePath();
+    ctx.fill();
+    // 侧面(暗)
+    ctx.fillStyle = shadeColor(this.color, -40);
+    ctx.beginPath();
+    ctx.moveTo(s.x - 18, s.y);
+    ctx.lineTo(s.x, s.y + 14);
+    ctx.lineTo(s.x, s.y + 14 - h);
+    ctx.lineTo(s.x - 18, s.y - h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(s.x + 18, s.y);
+    ctx.lineTo(s.x, s.y + 14);
+    ctx.lineTo(s.x, s.y + 14 - h);
+    ctx.lineTo(s.x + 18, s.y - h);
+    ctx.closePath();
+    ctx.fill();
+    // 甲板
+    ctx.fillStyle = shadeColor(this.color, 30);
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y - 14 - h);
+    ctx.lineTo(s.x + 18, s.y - h);
+    ctx.lineTo(s.x, s.y + 14 - h);
+    ctx.lineTo(s.x - 18, s.y - h);
+    ctx.closePath();
+    ctx.fill();
+    // 炮塔
+    ctx.fillStyle = '#444';
+    ctx.fillRect(s.x - 5, s.y - 5 - h, 10, 10);
+    // 血条
+    const ratio = this.hp / this.maxHp;
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(s.x - 16, s.y + 22, 32, 4);
+    ctx.fillStyle = ratio > 0.3 ? '#4f4' : '#f44';
+    ctx.fillRect(s.x - 16, s.y + 22, 32 * ratio, 4);
+  }
+}
+class Base {
+  constructor(team, x) {
+    this.team = team; this.x = x; this.y = 0; this.z = 0;
+    this.hp = 300; this.maxHp = 300; this.dead = false;
+    this.color = team === 0 ? '#d9b47f' : '#7fb4d9';
+  }
+  draw() {
+    const s = w2s(this.x, this.y);
+    const w = 120, h = 50, hh = 40;
+    // 阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y, w*0.7, w*0.25, 0, 0, Math.PI*2);
+    ctx.fill();
+    // 侧面
+    ctx.fillStyle = shadeColor(this.color, -50);
+    ctx.fillRect(s.x - w/2, s.y - hh, w, hh);
+    // 底面
+    ctx.fillStyle = this.color;
+    ctx.fillRect(s.x - w/2, s.y, w, h);
+    // 顶面
+    ctx.fillStyle = shadeColor(this.color, 40);
+    ctx.fillRect(s.x - w/2 + 8, s.y - hh, w - 16, h);
+    // 旗杆
+    ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(s.x, s.y - hh); ctx.lineTo(s.x, s.y - hh - 30); ctx.stroke();
+    ctx.fillStyle = this.team === 0 ? '#f44' : '#44f';
+    ctx.fillRect(s.x, s.y - hh - 25, 15, 10);
+    // 血条
+    const ratio = this.hp / this.maxHp;
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(s.x - w/2, s.y + 20, w, 6);
+    ctx.fillStyle = '#4f4';
+    ctx.fillRect(s.x - w/2, s.y + 20, w * ratio, 6);
+  }
+}
+class Turret {
+  constructor(team, x, y) {
+    this.team = team; this.x = x; this.y = y; this.z = 0;
+    this.hp = 80; this.maxHp = 80; this.dead = false;
+    this.range = 200; this.cdLeft = 0; this.barrelAngle = 0;
+    this.color = team === 0 ? '#82644a' : '#4a6482';
+    this.target = null;
+  }
+  update(dt) {
+    if (this.dead) return;
+    this.cdLeft -= dt;
+    this._findTarget();
+    if (this.target && this.cdLeft <= 0) this._fire();
+  }
+  _findTarget() {
+    this.target = null;
+    let best = this.range * this.range;
+    for (const b of boats) {
+      if (b.team === this.team || b.dead) continue;
+      const d = (b.x-this.x)**2 + (b.y-this.y)**2;
+      if (d < best) { best = d; this.target = b; }
+    }
+  }
+  _fire() {
+    if (!this.target) return;
+    this.cdLeft = 1.5;
+    const dx = this.target.x - this.x, dy = this.target.y - this.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < 0.1) return;
+    const dir = {x:dx/dist, y:dy/dist};
+    this.barrelAngle = Math.atan2(dir.x, -dir.y);
+    const v2 = 180*180;
+    let val = dist * 9.8 * 30 / v2;
+    val = Math.max(-1, Math.min(1, val));
+    const ang = Math.asin(val) / 2;
+    projectiles.push({
+      x: this.x + dir.x*15, y: this.y + dir.y*15, z: 10,
+      vx: dir.x * 180 * Math.cos(ang),
+      vy: dir.y * 180 * Math.cos(ang),
+      vz: 180 * Math.sin(ang),
+      dmg: 10, team: this.team, range: this.range+50,
+      traveled: 0, sx: this.x, sy: this.y, alive: true,
+    });
+  }
+  draw() {
+    const s = w2s(this.x, this.y);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(s.x, s.y, 18, 8, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = this.color;
+    ctx.fillRect(s.x - 12, s.y - 12, 24, 24);
+    ctx.fillStyle = shadeColor(this.color, -40);
+    ctx.fillRect(s.x - 12, s.y, 24, 8);
+    // 炮管
+    const bx = Math.sin(this.barrelAngle) * 20;
+    const by = -Math.cos(this.barrelAngle) * 20;
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(s.x, s.y - 2); ctx.lineTo(s.x + bx, s.y + by - 2); ctx.stroke();
+  }
+}
+
+function shadeColor(hex, amt) {
+  const r = Math.max(0, Math.min(255, parseInt(hex.slice(1,3),16) + amt));
+  const g = Math.max(0, Math.min(255, parseInt(hex.slice(3,5),16) + amt));
+  const b = Math.max(0, Math.min(255, parseInt(hex.slice(5,7),16) + amt));
+  return `rgb(${r},${g},${b})`;
+}
+
+function drawMap() {
+  // 天空
+  ctx.fillStyle = '#64a0c8';
+  ctx.fillRect(0, 0, 1280, 720);
+  // 水域
+  ctx.fillStyle = '#2870b4';
+  ctx.beginPath();
+  ctx.ellipse(640, 360, WATER_RX, WATER_RZ * PERSPECTIVE_Y, 0, 0, Math.PI*2);
+  ctx.fill();
+  // 波浪
+  ctx.strokeStyle = 'rgba(50,90,160,0.5)';
+  ctx.lineWidth = 1;
+  for (let i = -4; i <= 4; i++) {
+    const y = 360 + i * 30;
+    ctx.beginPath();
+    ctx.moveTo(640 - WATER_RX, y);
+    for (let x = -WATER_RX; x <= WATER_RX; x += 15) {
+      ctx.lineTo(640 + x, y + Math.sin(x * 0.03) * 2);
+    }
+    ctx.stroke();
+  }
+  // 沙滩
+  ctx.fillStyle = '#d9c88c';
+  ctx.fillRect(0, 0, 180, 720);
+  ctx.fillRect(1100, 0, 180, 720);
+}
+
+function drawMounds() {
+  for (const m of mounds) {
+    const s = w2s(m.x, m.y);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath(); ctx.ellipse(s.x+2, s.y+2, 22, 9, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#8c734b';
+    ctx.beginPath(); ctx.ellipse(s.x, s.y, 22, 9, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#a58c5f';
+    ctx.beginPath(); ctx.ellipse(s.x, s.y-3, 16, 6, 0, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+function updateProjectiles(dt) {
+  for (const p of projectiles) {
+    if (!p.alive) continue;
+    const g = 9.8 * 30;
+    p.vz -= g * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    p.traveled = Math.sqrt((p.x-p.sx)**2 + (p.y-p.sy)**2);
+    if (p.traveled > p.range || p.z < 0) { p.alive = false; continue; }
+    // 碰撞
+    for (const t of [...boats, ...turrets, ...bases]) {
+      if (t.team === p.team || t.dead) continue;
+      const d = Math.sqrt((t.x-p.x)**2 + (t.y-p.y)**2);
+      if (d < 25) {
+        t.hp -= p.dmg * (1 - (t.defense || 0));
+        if (t.hp <= 0) { t.hp = 0; t.dead = true; }
+        p.alive = false;
+        break;
+      }
+    }
+  }
+  projectiles = projectiles.filter(p => p.alive);
+}
+
+function drawProjectiles() {
+  for (const p of projectiles) {
+    // 阴影
+    const sh = w2s(p.x, p.y);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.arc(sh.x, sh.y, 5, 0, Math.PI*2); ctx.fill();
+    // 炮弹
+    const s = w2s(p.x, p.y, p.z);
+    ctx.fillStyle = 'rgba(255,200,50,0.5)';
+    ctx.beginPath(); ctx.arc(s.x, s.y, 7, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffb428';
+    ctx.beginPath(); ctx.arc(s.x, s.y, 4, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+// 初始化
+function initGame() {
+  boats = [];
+  mounds = [];
+  bases = [];
+  turrets = [];
+  projectiles = [];
+  selIdx = 0;
+
+  // 土堆
+  const mp = [[-80,-80],[0,0],[80,80],[-120,100],[120,-100],[0,-140]];
+  for (const [x,y] of mp) mounds.push({x,y});
+
+  // 基地
+  bases.push(new Base(0, -420));
+  bases.push(new Base(1, 420));
+
+  // 预置舰队(简化: 每方3艘船)
+  for (let i = 0; i < 3; i++) {
+    const b = new Boat(0, -200 + i*30, -60 + i*40);
+    boats.push(b);
+  }
+  for (let i = 0; i < 3; i++) {
+    const b = new Boat(1, 200 - i*30, -60 + i*40);
+    boats.push(b);
+  }
+  // 炮台
+  turrets.push(new Turret(0, -380, -50));
+  turrets.push(new Turret(1, 380, 50));
+
+  state = 'battle';
+}
+
+// 输入
+const keys = new Set();
+window.addEventListener('keydown', e => {
+  keys.add(e.keyCode);
+  if (e.keyCode === 9) { selIdx = (selIdx + 1) % Math.max(boats.filter(b=>b.team===0&&!b.dead).length, 1); e.preventDefault(); }
+});
+window.addEventListener('keyup', e => keys.delete(e.keyCode));
+cv.addEventListener('click', () => { if (state === 'title') initGame(); });
+
+function readInput() {
+  const p1Boats = boats.filter(b => b.team === 0 && !b.dead);
+  const b = p1Boats[selIdx % Math.max(p1Boats.length,1)];
+  if (b) {
+    b.input.throttle = (keys.has(87)?1:0) - (keys.has(83)?1:0);
+    b.input.turn = (keys.has(68)?1:0) - (keys.has(65)?1:0);
+    b.input.fire = b.input.fire || keys.has(32);
+  }
+  const p2Boats = boats.filter(b => b.team === 1 && !b.dead);
+  const b2 = p2Boats[0];
+  if (b2) {
+    b2.input.throttle = (keys.has(38)?1:0) - (keys.has(40)?1:0);
+    b2.input.turn = (keys.has(39)?1:0) - (keys.has(37)?1:0);
+    b2.input.fire = b2.input.fire || keys.has(13);
+  }
+}
+
+function drawTrajectory(b) {
+  if (!b || b.dead) return;
+  const angle = b.angle;
+  const la = Math.PI/4;
+  const hs = b.cannonPSpeed * Math.cos(la);
+  const vs = b.cannonPSpeed * Math.sin(la);
+  let wx = b.x + Math.sin(angle)*15, wy = b.y - Math.cos(angle)*15, wz = 10;
+  let vx = Math.sin(angle)*hs, vy = -Math.cos(angle)*hs, vz = vs;
+  const g = 9.8 * 30;
+  const dt = 0.03;
+  const maxT = b.cannonRange / hs * 2;
+  ctx.strokeStyle = 'rgba(255,200,50,0.6)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  let t = 0;
+  while (t < maxT) {
+    const s = w2s(wx, wy, wz);
+    if (t === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
+    wx += vx*dt; wy += vy*dt; wz += vz*dt; vz -= g*dt;
+    if (wz < 0) break;
+    t += dt;
+  }
+  ctx.stroke();
+}
+
+let lastTime = 0;
+function loop(time) {
+  const dt = Math.min((time - lastTime) / 1000, 0.05);
+  lastTime = time;
+
+  if (state === 'title') {
+    ctx.fillStyle = '#1a3a5a';
+    ctx.fillRect(0, 0, 1280, 720);
+    ctx.fillStyle = '#fff';
+    ctx.font = '48px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('沙滩航模大战', 640, 320);
+    ctx.font = '24px sans-serif';
+    ctx.fillStyle = '#8cf';
+    ctx.fillText('伪3D渲染预览 | 点击开始', 640, 380);
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'left';
+    ctx.fillText('玩家A: WASD移动转向 空格开火 Tab切换船', 440, 430);
+    ctx.fillText('玩家B: 方向键移动转向 回车开火', 440, 450);
+    ctx.fillText('基地HP归零 → 胜负结算', 440, 470);
+  } else if (state === 'battle') {
+    readInput();
+    // 更新
+    for (const b of boats) b.update(dt);
+    for (const t of turrets) t.update(dt);
+    updateProjectiles(dt);
+
+    // 清理死亡
+    // 渲染
+    drawMap();
+    drawMounds();
+    // 深度排序: 按世界Y
+    const all = [...mounds.map(m=>({y:m.y,draw:()=>{}})), ...boats, ...turrets, ...bases];
+    all.sort((a,b) => (a.y||0) - (b.y||0));
+    for (const o of all) if (o.draw) o.draw();
+
+    // 轨迹预览(选中船)
+    const p1Boats = boats.filter(b => b.team === 0 && !b.dead);
+    drawTrajectory(p1Boats[selIdx % Math.max(p1Boats.length,1)]);
+
+    drawProjectiles();
+
+    // HUD
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, 1280, 30);
+    ctx.fillStyle = '#fc8';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'left';
+    const a = p1Boats[selIdx % Math.max(p1Boats.length,1)];
+    ctx.fillText(`玩家A 船数:${p1Boats.length} 基地HP:${Math.ceil(bases[0].hp)}/${bases[0].maxHp}` + (a ? ` | 选中船 HP:${Math.ceil(a.hp)}/${a.maxHp}` : ''), 10, 20);
+    ctx.fillStyle = '#8cf';
+    ctx.textAlign = 'right';
+    ctx.fillText(`玩家B 船数:${boats.filter(b=>b.team===1&&!b.dead).length} 基地HP:${Math.ceil(bases[1].hp)}/${bases[1].maxHp}`, 1270, 20);
+
+    // 胜负
+    if (bases[0].dead || bases[1].dead) {
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(0, 0, 1280, 720);
+      ctx.fillStyle = bases[0].dead ? '#4af' : '#fc4';
+      ctx.font = '64px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(bases[0].dead ? '玩家 B 胜利！' : '玩家 A 胜利！', 640, 360);
+      ctx.font = '20px sans-serif';
+      ctx.fillStyle = '#fff';
+      ctx.fillText('点击重新开始', 640, 420);
+      state = 'result';
+    }
+  } else if (state === 'result') {
+    // 保持画面
+  }
+
+  requestAnimationFrame(loop);
+}
+
+// 点击重启
+cv.addEventListener('click', () => {
+  if (state === 'result') initGame();
+});
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

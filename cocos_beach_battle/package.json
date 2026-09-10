@@ -1,0 +1,11 @@
+{
+  "name": "beach-model-battle",
+  "version": "1.0.0",
+  "description": "沙滩航模大战 V1.0 - Cocos Creator 3.x 2D伪3D MVP",
+  "author": "Trae",
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@cocos/creator-types": "^3.8.0"
+  }
+}

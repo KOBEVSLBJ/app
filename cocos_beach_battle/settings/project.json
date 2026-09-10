@@ -1,0 +1,9 @@
+{
+  "engine": {
+    "version": "3.8.0"
+  },
+  "assets": {
+    "importBase": "imports",
+    "nativeBase": "natives"
+  }
+}

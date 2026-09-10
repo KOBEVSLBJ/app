@@ -1,0 +1,7 @@
+{
+  "name": "beach-model-battle",
+  "id": "beach-model-battle",
+  "engine": "cocos-creator-3.8",
+  "version": "1.0.0",
+  "description": "沙滩航模大战 V1.0 - Cocos 2D伪3D MVP"
+}
