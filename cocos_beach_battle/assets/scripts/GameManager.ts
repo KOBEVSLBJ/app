@@ -22,6 +22,7 @@ import { BuildUI } from './ui/BuildUI';
 import { DeployUI } from './ui/DeployUI';
 import { BattleHUD } from './ui/BattleHUD';
 import { ResultUI } from './ui/ResultUI';
+import { AssetLoader, PRELOAD_PATHS } from './core/AssetLoader';
 
 export class GameManager extends Component {
     private _state: GameState = GameState.BUILD;
@@ -90,6 +91,15 @@ export class GameManager extends Component {
         this._setupCamera();
         this._setupInput();
         this._enterBuild();
+
+        // 异步预加载 Kenney 精灵资源(完成后回套已存在单位)
+        AssetLoader.preload(PRELOAD_PATHS, () => this._onAssetsReady());
+    }
+
+    // 资源加载完成回调: 给部署阶段已创建的船补套船只精灵
+    private _onAssetsReady(): void {
+        for (const b of this._boatsA) b.applySpriteFrame();
+        for (const b of this._boatsB) b.applySpriteFrame();
     }
 
     // ================= 地图 =================
@@ -292,6 +302,7 @@ export class GameManager extends Component {
 
         if (this._deployPlayer === 0) this._boatsA.push(boat);
         else this._boatsB.push(boat);
+        if (AssetLoader.ready) boat.applySpriteFrame();
 
         this._deployBoatIdx++;
         if (this._deployBoatIdx >= fleet.length) {
@@ -382,6 +393,7 @@ export class GameManager extends Component {
             cannon.cannonRange!,
             () => this._getAllTargets(boat.team)
         );
+        if (AssetLoader.ready) proj.applySprite();
     }
 
     private _spawnTurretProjectile(pos: WorldPos, vel: WorldPos, dmg: number, team: number, range: number): void {
@@ -390,6 +402,7 @@ export class GameManager extends Component {
         const proj = projNode.addComponent(Projectile);
         proj.position = pos;
         proj.setup(dmg, vel, 9.8, team, range, () => this._getAllTargets(team));
+        if (AssetLoader.ready) proj.applySprite();
     }
 
     private _getAllTargets(team: number): any[] {

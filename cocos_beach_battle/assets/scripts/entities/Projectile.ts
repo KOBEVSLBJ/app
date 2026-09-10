@@ -6,9 +6,10 @@
 // - 屏幕渲染: x=worldX, y=worldY*压缩 - z*高度
 // - 阴影: x=worldX, y=worldY*压缩 (z=0平面)
 
-import { Component, Node, Graphics, Color } from 'cc';
+import { Component, Node, Graphics, Sprite, Color } from 'cc';
 import { Pseudo3D, WorldPos } from '../core/Pseudo3D';
 import { ModelRenderer } from '../core/ModelRenderer';
+import { AssetLoader, KenneyAssets } from '../core/AssetLoader';
 
 // 使用 any 避免 Boat ↔ Projectile 循环依赖
 type DamageableLike = { dead: boolean; team: number; position: WorldPos; takeDamage(amount: number, source?: string): void };
@@ -27,6 +28,8 @@ export class Projectile extends Component {
     private _traveled: number = 0;
     private _graphics!: Graphics;
     private _shadowGfx!: Graphics;
+    private _sprite: Sprite | null = null;
+    private _useSprite: boolean = false;
     private _getTargets!: () => DamageableLike[];
 
     setup(dmg: number, vel: WorldPos, g: number, team: number, range: number, getTargets: () => DamageableLike[]): void {
@@ -55,6 +58,23 @@ export class Projectile extends Component {
         const shadowNode = new Node('ProjShadow');
         this.node.addChild(shadowNode);
         this._shadowGfx = shadowNode.addComponent(Graphics);
+
+        // 炮弹精灵节点(叠在 Graphics 上)
+        const sNode = new Node('ProjSprite');
+        this.node.addChild(sNode);
+        this._sprite = sNode.addComponent(Sprite);
+        sNode.setScale(0.12, 0.12, 1); // cannonBall 原图缩放到约 6-8px
+        this.applySprite();
+    }
+
+    // 套用炮弹精灵(若资源已加载)
+    applySprite(): void {
+        if (!this._sprite) return;
+        const sf = AssetLoader.get(KenneyAssets.CANNON_BALL);
+        if (sf) {
+            this._sprite.spriteFrame = sf;
+            this._useSprite = true;
+        }
     }
 
     private _updateNodePos(): void {
@@ -105,7 +125,10 @@ export class Projectile extends Component {
 
     private _redraw(): void {
         this._graphics.clear();
-        ModelRenderer.drawProjectile(this._graphics, 0, 0);
+        // 已用炮弹精灵则跳过程序化炮弹绘制(只留阴影)
+        if (!this._useSprite) {
+            ModelRenderer.drawProjectile(this._graphics, 0, 0);
+        }
         // 阴影
         this._shadowGfx.clear();
         this._shadowGfx.fillColor = new Color(0, 0, 0, 80);
@@ -115,9 +138,16 @@ export class Projectile extends Component {
 
     private _destroy(): void {
         this._alive = false;
-        // 爆炸效果
-        this._graphics.clear();
-        ModelRenderer.drawExplosion(this._graphics, 0, 0, 12);
+        // 爆炸效果: 优先用爆炸精灵, 否则回退程序化
+        const sf = AssetLoader.get(KenneyAssets.EXPLOSION_1);
+        if (sf && this._sprite) {
+            this._sprite.spriteFrame = sf;
+            this._sprite.node.setScale(0.2, 0.2, 1); // 落地爆炸放大
+            this._graphics.clear();
+        } else {
+            this._graphics.clear();
+            ModelRenderer.drawExplosion(this._graphics, 0, 0, 12);
+        }
         this.schedule(() => {
             this.node.destroy();
         }, 0, 0, 0.15);

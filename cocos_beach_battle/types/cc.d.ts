@@ -33,6 +33,9 @@ declare module 'cc' {
     removeAllChildren(): void;
     setPosition(x: number, y: number, z?: number): void;
     getPosition(): Vec3;
+    setScale(x: number, y: number, z?: number): void;
+    scale: Vec3;
+    angle: number;
     setRotationFromEuler(x: number, y: number, z: number): void;
     setRotation(quat: Quat): void;
     getWorldPosition(): Vec3;
