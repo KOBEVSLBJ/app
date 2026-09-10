@@ -100,6 +100,8 @@ export class GameManager extends Component {
     private _onAssetsReady(): void {
         for (const b of this._boatsA) b.applySpriteFrame();
         for (const b of this._boatsB) b.applySpriteFrame();
+        if (this._buildUI) this._buildUI.refreshIcons();
+        if (this._mapRenderer) this._mapRenderer.refreshTiles();
     }
 
     // ================= 地图 =================

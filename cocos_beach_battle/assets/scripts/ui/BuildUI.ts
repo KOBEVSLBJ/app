@@ -1,9 +1,10 @@
 // 拼装阶段UI - 零件选择/预算校验/舰队配置
 // 沙滩航模大战 V1.0 - Cocos 2D伪3D
 
-import { Component, Node, Graphics, Color, Label, Button, Vec2, UITransform } from 'cc';
+import { Component, Node, Graphics, Sprite, Color, Label, Button, Vec2, UITransform } from 'cc';
 import { GameConfig } from '../data/GameConfig';
 import { PartData, PartType, BoatConfig, getCatalog, PartsCatalog } from '../data/PartData';
+import { AssetLoader, PART_ICON_PATHS } from '../core/AssetLoader';
 
 export class BuildUI extends Component {
     private _player: number = 0;
@@ -20,6 +21,7 @@ export class BuildUI extends Component {
     private _previewLabel!: Label;
     private _fleetLabel!: Label;
     private _confirmBtn!: Button;
+    private _partIcons: { sprite: Sprite; path: string }[] = [];
 
     onConfirmed: ((fleet: BoatConfig[], player: number) => void) | null = null;
 
@@ -131,6 +133,23 @@ export class BuildUI extends Component {
         lbl.color = Color.CYAN;
         lblNode.setPosition(0, 60, 0);
 
+        // 零件类型图标(标题下方, 20x20)
+        const typeKey = ['hull', 'motor', 'remote', 'sand', 'cannon'][type] || '';
+        const iconPath = PART_ICON_PATHS[typeKey];
+        if (iconPath) {
+            const iconNode = new Node('icon');
+            col.addChild(iconNode);
+            iconNode.setPosition(0, 38, 0);
+            const sp = iconNode.addComponent(Sprite);
+            const sf = AssetLoader.get(iconPath);
+            if (sf) {
+                sp.spriteFrame = sf;
+                sp.color = new Color(200, 220, 255, 255);
+            }
+            iconNode.setScale(0.3, 0.3, 1); // 64x64 → ~19px
+            this._partIcons.push({ sprite: sp, path: iconPath });
+        }
+
         // 零件列表(文字列表)
         const catalog = getCatalog(type);
         const isSand = type === PartType.SAND;
@@ -226,6 +245,18 @@ export class BuildUI extends Component {
             fleetText += `船${i + 1}: ${b.hull.name}+${b.motor.name}+${b.remote.name}+${b.sand ? b.sand.name : '无沙'}+${b.cannon.name} $${b.price}\n`;
         });
         this._fleetLabel.text = fleetText;
+    }
+
+    // 资源加载完成后补套零件图标(GameManager 调用)
+    refreshIcons(): void {
+        for (const it of this._partIcons) {
+            if (it.sprite.spriteFrame) continue;
+            const sf = AssetLoader.get(it.path);
+            if (sf) {
+                it.sprite.spriteFrame = sf;
+                it.sprite.color = new Color(200, 220, 255, 255);
+            }
+        }
     }
 
     private _onAddBoat(): void {

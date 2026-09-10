@@ -38,6 +38,17 @@ export const KenneyAssets = {
     // 地形 tile(MapRenderer 可选)
     TILE_WATER: 'kenney/tiles/tile_01/spriteFrame',
     TILE_SAND: 'kenney/tiles/tile_06/spriteFrame',
+    TILE_GRASS: 'kenney/tiles/tile_03/spriteFrame',
+};
+
+// 零件类型 → 代表图标路径(BuildUI 用, 每类零件固定一个图标)
+// HULL=船身, MOTOR=帆(动力感), REMOTE=旗杆(天线感), SAND=巢(沙堆感), CANNON=火炮
+export const PART_ICON_PATHS: { [type: string]: string } = {
+    'hull':    KenneyAssets.HULL_SMALL_1,
+    'motor':   KenneyAssets.SAIL_LARGE_1,
+    'remote':  KenneyAssets.POLE,
+    'sand':    KenneyAssets.NEST,
+    'cannon':  KenneyAssets.CANNON,
 };
 
 // 预加载路径清单(供 GameManager 启动时统一预取)
@@ -48,6 +59,7 @@ export const PRELOAD_PATHS: string[] = [
     KenneyAssets.CANNON, KenneyAssets.CANNON_MOBILE,
     KenneyAssets.HULL_SMALL_1, KenneyAssets.HULL_LARGE_1,
     KenneyAssets.SAIL_LARGE_1, KenneyAssets.POLE, KenneyAssets.FLAG_1, KenneyAssets.NEST,
+    KenneyAssets.TILE_WATER, KenneyAssets.TILE_SAND,
 ];
 
 export class AssetLoader {
