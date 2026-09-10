@@ -40,13 +40,15 @@ export class Mound {
         this.node.setPosition(screen.x, screen.y, 0);
     }
 
-    // 套用 nest 精灵(若资源已加载)
+    // 套用沙堆精灵: 优先 custom 自制, 回退 Kenney nest
     applySprite(): void {
         if (!this._sprite) return;
-        const sf = AssetLoader.get(KenneyAssets.NEST);
+        const sf = AssetLoader.getWithFallback(KenneyAssets.MOUND, KenneyAssets.MOUND_FALLBACK);
         if (sf) {
             this._sprite.spriteFrame = sf;
-            this._sprite.color = new Color(180, 150, 100, 255); // 沙色 tint
+            const isCustom = AssetLoader.has(KenneyAssets.MOUND);
+            // custom 自制图已含沙色, 不 tint; Kenney nest 才 tint 沙色
+            this._sprite.color = isCustom ? Color.WHITE : new Color(180, 150, 100, 255);
         }
     }
 

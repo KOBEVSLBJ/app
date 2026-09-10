@@ -138,11 +138,11 @@ export class Projectile extends Component {
 
     private _destroy(): void {
         this._alive = false;
-        // 爆炸效果: 优先用爆炸精灵, 否则回退程序化
-        const sf = AssetLoader.get(KenneyAssets.EXPLOSION_1);
+        // 爆炸效果: 优先 custom, 回退 Kenney, 再回退程序化
+        const sf = AssetLoader.getWithFallback(KenneyAssets.EXPLOSION_1, KenneyAssets.EXPLOSION_1_FALLBACK);
         if (sf && this._sprite) {
             this._sprite.spriteFrame = sf;
-            this._sprite.node.setScale(0.2, 0.2, 1); // 落地爆炸放大
+            this._sprite.node.setScale(0.25, 0.25, 1); // 落地爆炸放大
             this._graphics.clear();
         } else {
             this._graphics.clear();

@@ -11,19 +11,29 @@ import { SpriteFrame, resources } from 'cc';
 // Kenney Pirate Pack 资源路径常量
 // 加载 SpriteFrame 子资源用 "/spriteFrame" 后缀
 export const KenneyAssets = {
-    // 船只俯视图(按阵营选不同造型)
-    SHIP_A: 'kenney/ships/ship_1/spriteFrame',       // 玩家A 用
-    SHIP_B: 'kenney/ships/ship_2/spriteFrame',       // 玩家B 用
+    // 船只俯视图(优先用 custom 自制卡通航模, 失败回退 Kenney)
+    SHIP_A: 'custom/boat_a/spriteFrame',              // 自制卡通航模 A
+    SHIP_A_FALLBACK: 'kenney/ships/ship_1/spriteFrame',
+    SHIP_B: 'custom/boat_b/spriteFrame',              // 自制卡通航模 B
+    SHIP_B_FALLBACK: 'kenney/ships/ship_2/spriteFrame',
     SHIP_DINGHY: 'kenney/ships/dinghySmall1/spriteFrame', // 备选小艇
 
     // 炮弹
     CANNON_BALL: 'kenney/parts/cannonBall/spriteFrame',
 
-    // 爆炸/火焰特效
-    EXPLOSION_1: 'kenney/effects/explosion1/spriteFrame',
+    // 爆炸/火焰特效(优先 custom 自制, 失败回退 Kenney)
+    EXPLOSION_1: 'custom/explosion/spriteFrame',
+    EXPLOSION_1_FALLBACK: 'kenney/effects/explosion1/spriteFrame',
     EXPLOSION_2: 'kenney/effects/explosion2/spriteFrame',
     EXPLOSION_3: 'kenney/effects/explosion3/spriteFrame',
     FIRE_1: 'kenney/effects/fire1/spriteFrame',
+
+    // 基地(优先 custom 自制沙滩基地, 失败回退程序化)
+    BASE: 'custom/base/spriteFrame',
+
+    // 土堆(优先 custom 自制沙堆, 失败回退 Kenney nest)
+    MOUND: 'custom/mound/spriteFrame',
+    MOUND_FALLBACK: 'kenney/parts/nest/spriteFrame',
 
     // 零件图标(BuildUI 用)
     CANNON: 'kenney/parts/cannon/spriteFrame',
@@ -53,13 +63,18 @@ export const PART_ICON_PATHS: { [type: string]: string } = {
 };
 
 // 预加载路径清单(供 GameManager 启动时统一预取)
+// custom 自制 + Kenney fallback 都预加载, 运行时 getWithFallback 优先取 custom
 export const PRELOAD_PATHS: string[] = [
-    KenneyAssets.SHIP_A, KenneyAssets.SHIP_B,
+    KenneyAssets.SHIP_A, KenneyAssets.SHIP_A_FALLBACK,
+    KenneyAssets.SHIP_B, KenneyAssets.SHIP_B_FALLBACK,
     KenneyAssets.CANNON_BALL,
-    KenneyAssets.EXPLOSION_1, KenneyAssets.EXPLOSION_2, KenneyAssets.EXPLOSION_3,
+    KenneyAssets.EXPLOSION_1, KenneyAssets.EXPLOSION_1_FALLBACK,
+    KenneyAssets.EXPLOSION_2, KenneyAssets.EXPLOSION_3,
     KenneyAssets.CANNON, KenneyAssets.CANNON_MOBILE,
     KenneyAssets.HULL_SMALL_1, KenneyAssets.HULL_LARGE_1,
-    KenneyAssets.SAIL_LARGE_1, KenneyAssets.POLE, KenneyAssets.FLAG_1, KenneyAssets.FLAG_2, KenneyAssets.NEST,
+    KenneyAssets.SAIL_LARGE_1, KenneyAssets.POLE, KenneyAssets.FLAG_1, KenneyAssets.FLAG_2,
+    KenneyAssets.NEST,
+    KenneyAssets.BASE, KenneyAssets.MOUND, KenneyAssets.MOUND_FALLBACK,
     KenneyAssets.TILE_WATER, KenneyAssets.TILE_SAND,
 ];
 
@@ -105,5 +120,10 @@ export class AssetLoader {
 
     static has(path: string): boolean {
         return this._cache.has(path);
+    }
+
+    // 优先取 primary, 没有则取 fallback; 都没有返回 null(调用方应回退白模)
+    static getWithFallback(primary: string, fallback: string): SpriteFrame | null {
+        return this._cache.get(primary) ?? this._cache.get(fallback) ?? null;
     }
 }

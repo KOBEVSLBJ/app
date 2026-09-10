@@ -88,13 +88,21 @@ export class Boat extends Damageable {
     }
 
     // 从 AssetLoader 取对应阵营的船只 SpriteFrame 套用
+    // 优先用 custom 自制卡通航模, 失败回退 Kenney pirate ship
     applySpriteFrame(): void {
         if (!this._sprite) return;
-        const path = this.team === 0 ? KenneyAssets.SHIP_A : KenneyAssets.SHIP_B;
-        const sf = AssetLoader.get(path);
+        let sf: SpriteFrame | null = null;
+        if (this.team === 0) {
+            sf = AssetLoader.getWithFallback(KenneyAssets.SHIP_A, KenneyAssets.SHIP_A_FALLBACK);
+        } else {
+            sf = AssetLoader.getWithFallback(KenneyAssets.SHIP_B, KenneyAssets.SHIP_B_FALLBACK);
+        }
         if (sf) {
             this._sprite.spriteFrame = sf;
-            this._sprite.color = this.team === 0 ? Boat.TEAM_TINT_A : Boat.TEAM_TINT_B;
+            // custom 自制图已含阵营色, 不再 tint; Kenney fallback 才 tint
+            const isCustom = AssetLoader.has(this.team === 0 ? KenneyAssets.SHIP_A : KenneyAssets.SHIP_B);
+            this._sprite.color = isCustom ? Color.WHITE
+                : (this.team === 0 ? Boat.TEAM_TINT_A : Boat.TEAM_TINT_B);
             this._useSprite = true;
             this._redraw();
         }
@@ -245,12 +253,12 @@ export class Boat extends Damageable {
 
     protected onDestroyed(): void {
         if (this.onDestroyCb) this.onDestroyCb(this);
-        // 销毁动画: 优先用爆炸精灵, 否则回退程序化爆炸
-        const sf = AssetLoader.get(KenneyAssets.EXPLOSION_1);
+        // 销毁动画: 优先 custom 爆炸, 回退 Kenney, 再回退程序化
+        const sf = AssetLoader.getWithFallback(KenneyAssets.EXPLOSION_1, KenneyAssets.EXPLOSION_1_FALLBACK);
         if (sf && this._sprite) {
             this._sprite.spriteFrame = sf;
             this._sprite.color = Color.WHITE;
-            this._sprite.node.setScale(0.25, 0.25, 1); // 爆炸图放大
+            this._sprite.node.setScale(0.3, 0.3, 1); // 爆炸图放大
             this._graphics.clear();
         } else {
             const g = this._graphics;

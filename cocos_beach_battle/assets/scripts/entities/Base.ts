@@ -11,6 +11,7 @@ import { AssetLoader, KenneyAssets } from '../core/AssetLoader';
 export class Base extends Damageable {
     private _pos: WorldPos = { x: 0, y: 0, z: 0 };
     private _graphics!: Graphics;
+    private _baseSprite: Sprite | null = null;  // custom 基地整体图(覆盖程序化建筑)
     private _flagSprite: Sprite | null = null;
     private _poleSprite: Sprite | null = null;
     onDestroyCb: ((base: Base) => void) | null = null;
@@ -31,6 +32,15 @@ export class Base extends Damageable {
         const gNode = new Node('BaseGfx');
         this.node.addChild(gNode);
         this._graphics = gNode.addComponent(Graphics);
+
+        // custom 基地整体 sprite(叠在程序化建筑之上, 资源未加载则空)
+        const bsNode = new Node('BaseSprite');
+        this.node.addChild(bsNode);
+        this._baseSprite = bsNode.addComponent(Sprite);
+        // 64x64 → 约 120x90 基地尺寸
+        bsNode.setScale(GameConfig.BASE_WIDTH / 64, GameConfig.BASE_HEIGHT / 64, 1);
+        bsNode.setPosition(0, 25, 0); // 略上移对齐建筑主体
+        this._applyBaseSprite();
 
         // 旗杆 sprite(在建筑顶上方)
         // Kenney pole.png 64x64, 缩放到约 8x40 像素(细长旗杆)
@@ -75,10 +85,29 @@ export class Base extends Damageable {
         }
     }
 
-    // 资源就绪后补套旗帜
+    // 套用 custom 基地整体精灵(若已加载)
+    private _applyBaseSprite(): void {
+        if (!this._baseSprite) return;
+        const sf = AssetLoader.get(KenneyAssets.BASE);
+        if (sf) {
+            this._baseSprite.spriteFrame = sf;
+            this._baseSprite.color = this.team === 0
+                ? new Color(255, 220, 180, 255)  // 暖色 tint A
+                : new Color(180, 220, 255, 255); // 冷色 tint B
+            // custom 基地图已含旗杆/旗帜, 隐藏单独的 pole/flag sprite 避免重叠
+            if (this._poleSprite) this._poleSprite.node.active = false;
+            if (this._flagSprite) this._flagSprite.node.active = false;
+        }
+    }
+
+    // 资源就绪后补套旗帜/基地
     applySprites(): void {
-        this._applyPole();
-        this._applyFlag();
+        this._applyBaseSprite();
+        // 若 custom 基地未加载, 才补套单独的 pole/flag
+        if (!AssetLoader.has(KenneyAssets.BASE)) {
+            this._applyPole();
+            this._applyFlag();
+        }
     }
 
     private _updatePos(): void {
@@ -107,17 +136,19 @@ export class Base extends Damageable {
         // 基地被毁: 旗杆倾倒+旗帜消失, 建筑画爆炸
         if (this._flagSprite) this._flagSprite.node.active = false;
         if (this._poleSprite) {
+            this._poleSprite.node.active = true;
             this._poleSprite.node.setRotationFromEuler(0, 0, 70); // 倾倒
         }
-        // 优先用爆炸 sprite 覆盖建筑主体
-        const sf = AssetLoader.get(KenneyAssets.EXPLOSION_2);
+        // 隐藏 custom 基地图(被毁后不显示完整建筑)
+        if (this._baseSprite) this._baseSprite.node.active = false;
+        // 优先用 custom 爆炸 sprite 覆盖, 回退 Kenney, 再回退程序化
+        const sf = AssetLoader.getWithFallback(KenneyAssets.EXPLOSION_1, KenneyAssets.EXPLOSION_2);
         if (sf && this._flagSprite) {
-            // 复用 flag 节点位置画大爆炸
             this._flagSprite.node.active = true;
             this._flagSprite.spriteFrame = sf;
             this._flagSprite.color = Color.WHITE;
             this._flagSprite.node.setPosition(0, 20, 0);
-            this._flagSprite.node.setScale(0.5, 0.5, 1);
+            this._flagSprite.node.setScale(0.6, 0.6, 1); // 大爆炸
             this._graphics.clear();
         } else {
             this._graphics.clear();
