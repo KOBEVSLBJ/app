@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>沙滩航模大战 - 美术资源测试</title>
+<style>
+  body { margin:0; background:#1a1a2e; display:flex; flex-direction:column; justify-content:center; align-items:center; min-height:100vh; font-family:'Segoe UI',sans-serif; color:#eee; }
+  h1 { font-size:18px; margin:8px 0; color:#8cf; }
+  canvas { border:2px solid #345; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.5); }
+  #bar { display:flex; gap:8px; margin:10px 0; flex-wrap:wrap; justify-content:center; max-width:1280px; }
+  button { padding:8px 14px; border:none; border-radius:6px; background:linear-gradient(180deg,#5a82b0,#3a5878); color:#fff; font-size:13px; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,0.3); }
+  button:hover { background:linear-gradient(180deg,#6a92c0,#4a6888); }
+  button.active { background:linear-gradient(180deg,#e8a848,#c88838); }
+  #log { font-size:12px; color:#888; margin-top:6px; max-width:1280px; }
+</style>
+</head>
+<body>
+<h1>沙滩航模大战 - 美术资源效果测试</h1>
+<div id="bar">
+  <button id="bAll" class="active">全部资源</button>
+  <button id="bShips">船只</button>
+  <button id="bTerrain">地形</button>
+  <button id="bBuildings">建筑</button>
+  <button id="bEffects">特效</button>
+  <button id="bUI">UI面板</button>
+  <button id="bBattle">战斗场景</button>
+  <button id="bSfx">播放音效</button>
+</div>
+<canvas id="game" width="1280" height="720"></canvas>
+<div id="log">点击按钮切换视图 | 音效按钮测试播放</div>
+<script>
+const cv = document.getElementById('game');
+const ctx = cv.getContext('2d');
+const log = document.getElementById('log');
+
+// === 资源加载 ===
+const RESOURCES = {
+  boat_a: 'assets/resources/custom/boat_a.jpg',
+  boat_b: 'assets/resources/custom/boat_b.jpg',
+  base: 'assets/resources/custom/base.jpg',
+  mound: 'assets/resources/custom/mound.jpg',
+  explosion: 'assets/resources/custom/explosion.jpg',
+  tile_water: 'assets/resources/custom/tile_water.jpg',
+  tile_sand: 'assets/resources/custom/tile_sand.jpg',
+};
+const SFX = {
+  cannon_fire: 'assets/resources/audio/cannon_fire.ogg',
+  explosion: 'assets/resources/audio/explosion.ogg',
+  hit: 'assets/resources/audio/hit.ogg',
+  boat_destroyed: 'assets/resources/audio/boat_destroyed.ogg',
+};
+
+const images = {};
+const sfxBuffers = {};
+let loaded = 0, total = Object.keys(RESOURCES).length;
+
+function loadImages(cb) {
+  for (const [k, p] of Object.entries(RESOURCES)) {
+    const img = new Image();
+    img.onload = () => { loaded++; log.textContent = `加载 ${k} (${loaded}/${total})`; if (loaded >= total) cb(); };
+    img.onerror = () => { loaded++; log.textContent = `加载 ${k} 失败(${p})`; if (loaded >= total) cb(); };
+    img.src = p;
+    images[k] = img;
+  }
+}
+
+// 音效播放(用 Audio 元素简单播放)
+function playSfx(name) {
+  const a = new Audio(SFX[name]);
+  a.volume = 0.7;
+  a.play().catch(e => log.textContent = `音效 ${name} 播放失败: ${e.message}`);
+}
+
+let view = 'all';
+
+document.getElementById('bAll').onclick = () => { view='all'; setActive('bAll'); };
+document.getElementById('bShips').onclick = () => { view='ships'; setActive('bShips'); };
+document.getElementById('bTerrain').onclick = () => { view='terrain'; setActive('bTerrain'); };
+document.getElementById('bBuildings').onclick = () => { view='buildings'; setActive('bBuildings'); };
+document.getElementById('bEffects').onclick = () => { view='effects'; setActive('bEffects'); };
+document.getElementById('bUI').onclick = () => { view='ui'; setActive('bUI'); };
+document.getElementById('bBattle').onclick = () => { view='battle'; setActive('bBattle'); };
+document.getElementById('bSfx').onclick = () => {
+  ['cannon_fire','hit','explosion','boat_destroyed'].forEach((s,i) => setTimeout(()=>playSfx(s), i*600));
+};
+
+function setActive(id) {
+  document.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// === 绘制工具 ===
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+
+function drawImg(key, x, y, w, h, tint) {
+  const img = images[key];
+  if (!img || !img.complete || img.naturalWidth===0) {
+    // 加载失败: 画占位
+    ctx.fillStyle = '#444';
+    ctx.fillRect(x-w/2, y-h/2, w, h);
+    ctx.strokeStyle = '#888';
+    ctx.strokeRect(x-w/2, y-h/2, w, h);
+    ctx.fillStyle = '#aaa';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(key, x, y);
+    return;
+  }
+  if (tint) {
+    // tint: 先画图, 再叠加颜色
+    ctx.save();
+    ctx.drawImage(img, x-w/2, y-h/2, w, h);
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = tint;
+    ctx.fillRect(x-w/2, y-h/2, w, h);
+    ctx.restore();
+  } else {
+    ctx.drawImage(img, x-w/2, y-h/2, w, h);
+  }
+}
+
+// === 各视图绘制 ===
+function drawAll() {
+  ctx.fillStyle = '#2a2a3e';
+  ctx.fillRect(0, 0, 1280, 720);
+  ctx.fillStyle = '#8cf';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('全部美术资源总览', 640, 30);
+
+  const items = [
+    {k:'boat_a', label:'船只A(暖)'},
+    {k:'boat_b', label:'船只B(冷)'},
+    {k:'base', label:'基地'},
+    {k:'mound', label:'土堆'},
+    {k:'explosion', label:'爆炸'},
+    {k:'tile_water', label:'水面tile'},
+    {k:'tile_sand', label:'沙滩tile'},
+  ];
+  const cols = 4;
+  const cellW = 280, cellH = 200;
+  const startX = (1280 - cols*cellW)/2;
+  for (let i=0; i<items.length; i++) {
+    const r = Math.floor(i/cols), c = i%cols;
+    const x = startX + c*cellW + cellW/2;
+    const y = 80 + r*cellH + cellH/2;
+    // 单元格背景
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    roundRect(x-cellW/2+10, y-cellH/2+10, cellW-20, cellH-20, 8);
+    ctx.fill();
+    // 图片
+    const sz = 120;
+    drawImg(items[i].k, x, y-10, sz, sz);
+    // 标签
+    ctx.fillStyle = '#fc8';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(items[i].label, x, y+cellH/2-25);
+  }
+}
+
+function drawShips() {
+  ctx.fillStyle = '#1a2a3e';
+  ctx.fillRect(0, 0, 1280, 720);
+  ctx.fillStyle = '#8cf';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('航模船只 - 俯视图', 640, 30);
+  // A 队船只(原色 + tint 变体)
+  const variants = [
+    {x:320, label:'A 原色', k:'boat_a', tint:null},
+    {x:640, label:'A 暖黄tint', k:'boat_a', tint:'rgba(255,200,80,0.5)'},
+    {x:960, label:'B 原色', k:'boat_b', tint:null},
+  ];
+  for (const v of variants) {
+    ctx.fillStyle = 'rgba(60,100,160,0.3)';
+    ctx.beginPath(); ctx.ellipse(v.x, 360, 120, 40, 0, 0, Math.PI*2); ctx.fill();
+    drawImg(v.k, v.x, 360, 200, 200, v.tint);
+    ctx.fillStyle = '#fc8'; ctx.font='14px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(v.label, v.x, 490);
+  }
+}
+
+function drawTerrain() {
+  // 平铺水面+沙滩 tile
+  ctx.fillStyle = '#0a1a2e';
+  ctx.fillRect(0, 0, 1280, 720);
+  ctx.fillStyle = '#8cf';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('地形 tile 平铺(交错排列)', 640, 30);
+  const tileW = 128, tileH = 64;
+  // 水面 8x4
+  for (let r=0; r<4; r++) {
+    const xOff = (r%2)*64;
+    for (let c=0; c<9; c++) {
+      const x = c*tileW + xOff;
+      const y = 60 + r*tileH*0.85;
+      drawImg('tile_water', x+tileW/2, y+tileH/2, tileW, tileH);
+    }
+  }
+  // 沙滩左右
+  for (const side of [0, 1]) {
+    const cx = side===0 ? 80 : 1200;
+    for (let r=0; r<4; r++) {
+      for (let c=0; c<2; c++) {
+        const x = cx + c*tileW - tileW;
+        const y = 60 + r*tileH*0.85;
+        drawImg('tile_sand', x+tileW/2, y+tileH/2, tileW, tileH);
+      }
+    }
+  }
+}
+
+function drawBuildings() {
+  ctx.fillStyle = '#2a2a3e';
+  ctx.fillRect(0, 0, 1280, 720);
+  ctx.fillStyle = '#8cf';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('基地 + 土堆障碍', 640, 30);
+  // 基地 A/B
+  drawImg('base', 400, 360, 200, 200);
+  drawImg('base', 880, 360, 200, 200, 'rgba(120,180,255,0.3)');
+  ctx.fillStyle='#fc8'; ctx.font='14px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('基地 A(暖)', 400, 490);
+  ctx.fillText('基地 B(冷tint)', 880, 490);
+  // 土堆多个
+  for (let i=0; i<4; i++) {
+    const x = 200 + i*250;
+    drawImg('mound', x, 560, 80, 40);
+  }
+  ctx.fillStyle='#fc8'; ctx.fillText('土堆障碍(多个)', 640, 620);
+}
+
+function drawEffects() {
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, 1280, 720);
+  ctx.fillStyle = '#8cf';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('爆炸特效', 640, 30);
+  // 不同尺寸
+  const sizes = [{x:320,s:120,l:'小'},{x:640,s:200,l:'中'},{x:960,s:300,l:'大'}];
+  for (const s of sizes) {
+    drawImg('explosion', s.x, 380, s.s, s.s);
+    ctx.fillStyle='#fc8'; ctx.font='14px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(s.l, s.x, 560);
+  }
+}
+
+function drawUI() {
+  // 模拟美化后的 BuildUI 面板
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, 1280, 720);
+  // 渐变背景
+  for (let i=0; i<12; i++) {
+    const t = i/11;
+    const r = Math.round(25+t*10), g = Math.round(35+t*15), b = Math.round(55+t*20);
+    ctx.fillStyle = `rgba(${r},${g},${b},0.94)`;
+    ctx.fillRect(20, 660-i*53, 1240, 54);
+  }
+  // 圆角边框
+  ctx.strokeStyle = 'rgba(80,130,200,1)';
+  ctx.lineWidth = 3;
+  roundRect(20, 20, 1240, 680, 12); ctx.stroke();
+  // 标题栏
+  ctx.fillStyle = 'rgba(50,80,140,1)';
+  roundRect(20, 620, 1240, 80, 12); ctx.fill();
+  ctx.strokeStyle = 'rgba(120,170,230,0.8)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(24, 620); ctx.lineTo(1256, 620); ctx.stroke();
+  // 标题
+  ctx.fillStyle = 'rgba(255,220,150,1)';
+  ctx.font = 'bold 36px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('⚓ 拼装阶段 - 玩家 A', 640, 670);
+
+  // 零件列
+  const parts = ['船身','马达','遥控','沙子','火炮'];
+  const colW = 200;
+  const startX = (1280 - parts.length*colW)/2;
+  for (let i=0; i<parts.length; i++) {
+    const x = startX + i*colW + colW/2;
+    // 标题
+    ctx.fillStyle = '#4af'; ctx.font='18px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(parts[i], x, 100);
+    // 零件图标
+    const iconKey = ['boat_a', null, null, 'mound', null][i];
+    if (iconKey) drawImg(iconKey, x, 130, 30, 30, 'rgba(200,220,255,0.5)');
+    // 零件列表
+    ctx.fillStyle = 'rgba(30,40,60,0.8)';
+    roundRect(x-90, 160, 180, 200, 5); ctx.fill();
+    const items = ['泡沫板 $30','木板 $60','铁皮 $100'];
+    for (let j=0; j<items.length; j++) {
+      const iy = 180 + j*40;
+      const selected = j===0;
+      if (selected) {
+        ctx.fillStyle = 'rgba(80,120,180,0.7)';
+        roundRect(x-85, iy-12, 170, 24, 4); ctx.fill();
+        ctx.strokeStyle = 'rgba(140,180,230,0.8)'; ctx.lineWidth=1;
+        roundRect(x-85, iy-12, 170, 24, 4); ctx.stroke();
+      }
+      ctx.fillStyle = selected ? 'rgba(255,230,120,1)' : 'rgba(255,255,255,1)';
+      ctx.font='14px sans-serif'; ctx.textAlign='center';
+      ctx.fillText(items[j], x, iy+4);
+    }
+  }
+
+  // 按钮示例
+  const btns = [{x:400,t:'添加此船到舰队'},{x:880,t:'确认舰队 → 部署'}];
+  for (const b of btns) {
+    ctx.fillStyle = 'rgba(60,90,150,1)';
+    roundRect(b.x-100, 420, 200, 44, 8); ctx.fill();
+    ctx.fillStyle = 'rgba(100,140,200,0.7)';
+    roundRect(b.x-98, 422, 196, 20, 6); ctx.fill();
+    ctx.strokeStyle = 'rgba(140,180,230,1)'; ctx.lineWidth=2;
+    roundRect(b.x-100, 420, 200, 44, 8); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font='18px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(b.t, b.x, 448);
+  }
+}
+
+// 战斗场景(动画版)
+let battleT = 0;
+const battleBoats = [
+  {x:-200, y:0, team:0, k:'boat_a', vx:0.5},
+  {x:200, y:0, team:1, k:'boat_b', vx:-0.5},
+];
+const battleExplosions = [];
+function drawBattle() {
+  battleT++;
+  ctx.fillStyle = '#0a1a2e';
+  ctx.fillRect(0, 0, 1280, 720);
+  ctx.fillStyle = '#8cf'; ctx.font='bold 18px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('战斗场景模拟(船只移动+开火+爆炸)', 640, 25);
+
+  // 水面 tile 平铺
+  for (let r=0; r<6; r++) {
+    const xOff = (r%2)*64;
+    for (let c=0; c<11; c++) {
+      const x = c*128 + xOff;
+      const y = 80 + r*54;
+      drawImg('tile_water', x+64, y+32, 128, 64);
+    }
+  }
+
+  // 基地
+  drawImg('base', 100, 380, 120, 120, 'rgba(255,200,150,0.2)');
+  drawImg('base', 1180, 380, 120, 120, 'rgba(150,200,255,0.2)');
+
+  // 土堆
+  for (const mx of [-100, 0, 100]) {
+    drawImg('mound', 640+mx, 380, 60, 30);
+  }
+
+  // 船只移动
+  for (const b of battleBoats) {
+    b.x += b.vx;
+    if (b.x > 540 || b.x < -540) b.vx *= -1;
+    const sx = 640 + b.x;
+    const sy = 380;
+    // 船只
+    ctx.save();
+    ctx.translate(sx, sy);
+    if (b.team===1) ctx.scale(-1, 1);
+    drawImg(b.k, 0, 0, 100, 100);
+    ctx.restore();
+    // 阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(sx, sy+55, 50, 12, 0, 0, Math.PI*2); ctx.fill();
+  }
+
+  // 周期性产生爆炸
+  if (battleT % 90 === 0) {
+    const tx = 640 + (Math.random()-0.5)*200;
+    const ty = 300 + Math.random()*160;
+    battleExplosions.push({x:tx, y:ty, life:30, sz:80+Math.random()*60});
+    playSfx('hit');
+  }
+  // 绘制爆炸
+  for (let i=battleExplosions.length-1; i>=0; i--) {
+    const e = battleExplosions[i];
+    e.life--;
+    if (e.life <= 0) { battleExplosions.splice(i,1); continue; }
+    const scale = 1 + (30-e.life)/30 * 0.5;
+    ctx.globalAlpha = e.life/30;
+    drawImg('explosion', e.x, e.y, e.sz*scale, e.sz*scale);
+    ctx.globalAlpha = 1;
+  }
+
+  // HUD
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, 1280, 30);
+  ctx.fillStyle = '#fc8'; ctx.font='14px sans-serif'; ctx.textAlign='left';
+  ctx.fillText(`玩家A 船数:2 基地HP:200/200`, 10, 20);
+  ctx.textAlign='right';
+  ctx.fillText(`玩家B 船数:2 基地HP:200/200`, 1270, 20);
+}
+
+function loop() {
+  if (view==='all') drawAll();
+  else if (view==='ships') drawShips();
+  else if (view==='terrain') drawTerrain();
+  else if (view==='buildings') drawBuildings();
+  else if (view==='effects') drawEffects();
+  else if (view==='ui') drawUI();
+  else if (view==='battle') drawBattle();
+  requestAnimationFrame(loop);
+}
+
+loadImages(() => { log.textContent='资源加载完成, 选择视图查看'; loop(); });
+</script>
+</body>
+</html>
